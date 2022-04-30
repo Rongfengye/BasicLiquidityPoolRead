@@ -36,14 +36,16 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
     }
 };
 exports.__esModule = true;
-exports.ETHER = void 0;
 var ethers_1 = require("ethers");
 var addresses_1 = require("./addresses");
 var abi_1 = require("./abi");
+var dotenv = require("dotenv");
+dotenv.config();
+console.log(process.env);
 // Ethereum RPC Endpoint that will be hit by providers
 // Acquired from https://rpc.info/
-// const ETHEREUM_RPC_URL = process.env.ETHEREUM_RPC_URL || "testing"
-var ETHEREUM_RPC_URL = "https://rpc.ankr.com/eth";
+var ETHEREUM_RPC_URL = process.env.ETHEREUM_RPC_URL || "testing";
+// const ETHEREUM_RPC_URL = "https://rpc.ankr.com/eth";
 // console.log("The ethereum endpoint is" + ETHEREUM_RPC_URL);
 // Used to get information off of the chain
 // Standard json rpc provider directly from ethers.js (Flashbots)
@@ -61,37 +63,25 @@ var provider = new ethers_1.providers.StaticJsonRpcProvider(ETHEREUM_RPC_URL);
 //    the chainID is local and therefore cheap
 // However, there are also many times where it is known the network cannot change
 var liquidity_pool = new ethers_1.Contract(addresses_1.LIQUIDITY_POOL_ADDRESS, abi_1.LIQUIDITY_POOL_ABI, provider);
-exports.ETHER = ethers_1.BigNumber.from(10).pow(18);
-// BigNumber is a library in ethers that helps handle really large numbers and prevent overflow
-function bigNumberToDecimal(value, base) {
-    if (base === void 0) { base = 18; }
-    var divisor = ethers_1.BigNumber.from(10).pow(base);
-    return value.mul(10000).div(divisor).toNumber() / 10000;
-}
 function main() {
     return __awaiter(this, void 0, void 0, function () {
-        var FIRST_COIN_ADDRESS, SECOND_COIN_ADDRESS, firstCoin, secondCoin, firstCoinDecimals, secondCoinDecimals;
+        var _a, FIRST_COIN_ADDRESS, SECOND_COIN_ADDRESS, firstCoin, secondCoin, _b, firstCoinDecimals, secondCoinDecimals;
         var _this = this;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
+        return __generator(this, function (_c) {
+            switch (_c.label) {
                 case 0:
                     console.log("Hitting the Ethereum RPC endpoint at" + ETHEREUM_RPC_URL);
-                    return [4 /*yield*/, liquidity_pool.token0()];
+                    return [4 /*yield*/, Promise.all([liquidity_pool.token0(), liquidity_pool.token1()])];
                 case 1:
-                    FIRST_COIN_ADDRESS = _a.sent();
-                    return [4 /*yield*/, liquidity_pool.token1()];
-                case 2:
-                    SECOND_COIN_ADDRESS = _a.sent();
+                    _a = _c.sent(), FIRST_COIN_ADDRESS = _a[0], SECOND_COIN_ADDRESS = _a[1];
                     firstCoin = new ethers_1.Contract(FIRST_COIN_ADDRESS, abi_1.TOKEN_ABI, provider);
                     secondCoin = new ethers_1.Contract(SECOND_COIN_ADDRESS, abi_1.TOKEN_ABI, provider);
-                    return [4 /*yield*/, firstCoin.decimals()];
-                case 3:
-                    firstCoinDecimals = _a.sent();
-                    return [4 /*yield*/, secondCoin.decimals()];
-                case 4:
-                    secondCoinDecimals = _a.sent();
+                    return [4 /*yield*/, Promise.all([firstCoin.decimals(), secondCoin.decimals()])];
+                case 2:
+                    _b = _c.sent(), firstCoinDecimals = _b[0], secondCoinDecimals = _b[1];
+                    // The provider runs the lambda function on everytime there is a new block
                     provider.on('block', function (blockNumber) { return __awaiter(_this, void 0, void 0, function () {
-                        var reserves, firstCoinReserve, firstCoinDivisor, pooledFirstToken, secondCoinReserve, secondCoinDivisor, pooledSecondToken;
+                        var reserves, firstCoinReserve, firstCoinDivisor, pooledFirstToken, secondCoinReserve, secondCoinDivisor, pooledSecondToken, USDC, ETH;
                         return __generator(this, function (_a) {
                             switch (_a.label) {
                                 case 0:
@@ -99,16 +89,17 @@ function main() {
                                     return [4 /*yield*/, liquidity_pool.getReserves()];
                                 case 1:
                                     reserves = _a.sent();
-                                    console.log("The reserves for this pool");
-                                    console.log(reserves);
                                     firstCoinReserve = reserves._reserve0;
                                     firstCoinDivisor = ethers_1.BigNumber.from(10).pow(firstCoinDecimals);
                                     pooledFirstToken = firstCoinReserve.div(firstCoinDivisor);
                                     secondCoinReserve = reserves._reserve1;
                                     secondCoinDivisor = ethers_1.BigNumber.from(10).pow(secondCoinDecimals);
                                     pooledSecondToken = secondCoinReserve.div(secondCoinDivisor);
-                                    console.log("The ratios are");
-                                    console.log(pooledFirstToken.div(pooledSecondToken).toNumber());
+                                    USDC = (FIRST_COIN_ADDRESS == addresses_1.USDC_ADDRESS) ? pooledFirstToken : pooledSecondToken;
+                                    ETH = (SECOND_COIN_ADDRESS == addresses_1.ETH_ADDRESS) ? pooledSecondToken : pooledFirstToken;
+                                    console.log("There are " + pooledFirstToken.toNumber() + " pooled USDC Tokens");
+                                    console.log("There are " + pooledSecondToken.toNumber() + " pooled ETH Tokens");
+                                    console.log("The value one Ethereum token is: $" + USDC.div(ETH).toNumber() + "\n");
                                     return [2 /*return*/];
                             }
                         });

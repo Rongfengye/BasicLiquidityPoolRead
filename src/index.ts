@@ -1,13 +1,15 @@
 import { Contract, providers, BigNumber } from "ethers";
 import { LIQUIDITY_POOL_ADDRESS, USDC_ADDRESS, ETH_ADDRESS } from "./addresses";
 import { LIQUIDITY_POOL_ABI, TOKEN_ABI } from "./abi";
+import * as dotenv from "dotenv"
 
+dotenv.config();
+
+console.log(process.env);
 
 // Ethereum RPC Endpoint that will be hit by providers
 // Acquired from https://rpc.info/
-// const ETHEREUM_RPC_URL = process.env.ETHEREUM_RPC_URL || "testing"
-const ETHEREUM_RPC_URL = "https://rpc.ankr.com/eth";
-// console.log("The ethereum endpoint is" + ETHEREUM_RPC_URL);
+const ETHEREUM_RPC_URL = process.env.ETHEREUM_RPC_URL || ""
 
 // Used to get information off of the chain
 // Standard json rpc provider directly from ethers.js (Flashbots)
@@ -30,14 +32,19 @@ const liquidity_pool = new Contract(LIQUIDITY_POOL_ADDRESS, LIQUIDITY_POOL_ABI, 
 async function main() {
   console.log("Hitting the Ethereum RPC endpoint at" + ETHEREUM_RPC_URL);
 
-  const FIRST_COIN_ADDRESS = await liquidity_pool.token0();
-  const SECOND_COIN_ADDRESS = await liquidity_pool.token1();
+  // await Promise.all all allows us to run our async functions in parallel
+  let [FIRST_COIN_ADDRESS, SECOND_COIN_ADDRESS] = 
+           await Promise.all([liquidity_pool.token0(),liquidity_pool.token1()]);
 
+  // All ERC20 Tokens have the same ABI
   const firstCoin = new Contract(FIRST_COIN_ADDRESS, TOKEN_ABI, provider);
   const secondCoin = new Contract(SECOND_COIN_ADDRESS, TOKEN_ABI, provider);
-  const firstCoinDecimals = await firstCoin.decimals();
-  const secondCoinDecimals = await secondCoin.decimals();
 
+  // Different Pairs have their corresponding decimals in the representation
+  let [firstCoinDecimals, secondCoinDecimals] = 
+            await Promise.all([firstCoin.decimals(), secondCoin.decimals()]);
+
+  // The provider runs the lambda function on everytime there is a new block
   provider.on('block', async (blockNumber) => {
     console.log("On Block Number: " + blockNumber.toString())
 
@@ -51,8 +58,13 @@ async function main() {
     const secondCoinDivisor = BigNumber.from(10).pow(secondCoinDecimals);
     const pooledSecondToken = secondCoinReserve.div(secondCoinDivisor);
 
-    console.log("The ratios are");
-    console.log(pooledFirstToken.div(pooledSecondToken).toNumber());
+    const USDC = (FIRST_COIN_ADDRESS == USDC_ADDRESS) ? pooledFirstToken : pooledSecondToken;
+    const ETH = (SECOND_COIN_ADDRESS == ETH_ADDRESS) ? pooledSecondToken : pooledFirstToken;
+
+    console.log("There are " + pooledFirstToken.toNumber() + " pooled USDC Tokens");
+    console.log("There are " + pooledSecondToken.toNumber() + " pooled ETH Tokens");
+
+    console.log("The value one Ethereum token is: $" + USDC.div(ETH).toNumber() + "\n");
   })
 }
 
